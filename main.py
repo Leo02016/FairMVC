@@ -146,7 +146,7 @@ if __name__ == '__main__':
     parser.add_argument('-purturbed', dest='purturbed',  action='store_true', help='purturbed feature scenario')
     parser.add_argument('-mode', dest='mode',  type=str, default='noncontra', help='contra or noncontra')
     args = parser.parse_args()
-    seeds = [1, 2, 5, 6, 7]
+    seeds = [2, 5, 6, 7, 8]
     nmi_list = []
     balance_list = []
     for i in range(5):
