@@ -21,7 +21,10 @@ class load_xrmb():
         self.label = np.array(data['testLabel'][indices]).reshape(-1, )
         data2 = sio.loadmat('./data/XRMBf2KALDI_window7_single1.mat')
         self.data = data2['XTe1'][indices]
+        # self.data = np.concatenate([self.data_1, self.data2], axis=1)
         self.s = np.zeros((number, 1))
+        # self.data = self.data / np.max(self.data, axis=0)
+        # self.data2 = self.data2 / np.max(self.data2, axis=0)
 
     def __len__(self):
         return len(self.label)
@@ -60,9 +63,11 @@ class load_uci_credit():
             indices = indices + list(idx)[: 1000]
         self.data = self.sigmoid(data[indices]-1)
         self.data2 = np.tanh(data[indices]-0.1)
-        self.s = sensitive_feature[indices]
+        self.s = np.array([sensitive_feature[indices], 1-sensitive_feature[indices]]).T
+        # print(self.s.sum(axis=0))
         self.label = label[indices]
         if not os.path.exists("./dataset/UCI_Credit_Card_mask_{}.npy".format(missing_ratio)):
+        # if not os.path.exists("./dataset/UCI_Credit_Card_mask.npy"):
             self.mask = []
             self.mask2 = []
             for i in range(5):
@@ -110,7 +115,6 @@ class load_uci_credit():
         self.label = self.label[idx]
 
 
-
 class load_zafar():
     """
       genZafarData(n = 10000; d = pi/4)
@@ -129,8 +133,8 @@ class load_zafar():
         else:
             from scipy.stats import multivariate_normal
             from numpy import linalg as LA
-            mu1, sigma1 = [0.2, 0.2],  [[1, 1], [-0.1, 0.5]]
-            mu2, sigma2 = [-0.2, -0.2], [[5.0, 3.0],  [0.2, 0.6]]
+            mu1, sigma1 = [1.2, 0.2],  [[5., 3.], [1., 5.]]
+            mu2, sigma2 = [-0.2, -0.2], [[5., 1.],  [1., 3.]]
             npos = np.int64(math.floor(n/2))
             X1, y1 = self.genGaussian(mu1, sigma1,  1, npos)     # positive class
             X2, y2 = self.genGaussian(mu2, sigma2, -1, n - npos) # negative class
@@ -148,17 +152,20 @@ class load_zafar():
                 p1 = multivariate_normal.pdf(x, mean=mu1, cov=sigma1)
                 p2 = multivariate_normal.pdf(x, mean=mu2, cov=sigma2)
                 # normalize the probabilities from 0 to 1
-                s = p1+p2
-                p1 = p1/s
+                s = p1 + p2
+                p1 = p1/s # p2 = p2/s
                 if np.random.uniform(0, 1) < p1:
                     x_control.append(0) # majority class
                 else:
-                    x_control.append(1) # protected class
-            data = {'X': X, 's': x_control, 'y': y}
+                    x_control.append(1)# protected class
+            data = {'X': X, 's': np.array(x_control), 'y': y}
             sio.savemat('./dataset/zafar_{}.mat'.format(idx), data)
         self.data = np.tanh(data['X'])[:n, :]
         self.data2 = self.sigmoid(data['X'])[:n, :]
-        self.s = np.array(data['s']).T[:n]
+        # self.s = np.array(data['s']).T[:n]
+        data['s'] = data['s'].reshape(-1,)
+        self.s = np.array([data['s'], 1-data['s']]).T[:n]
+        # print(self.s.sum(axis=0))
         self.label = data['y'].reshape(-1, )[:n]
         self.k = np.unique(data['y']).shape[0]
         index = idx
@@ -193,7 +200,9 @@ class load_zafar():
             self.data[self.mask] = self.data[self.mask] + noise_1[self.mask]
             self.data2[self.mask2] = self.data2[self.mask2] + noise_2[self.mask2]
 
+
     def genGaussian(self, mean_in, cov_in, class_label, n):
+        # nv = Distributions.MvNormal(mean_in, cov_in)
         X = np.random.multivariate_normal(mean_in, cov_in, (n, 100)).reshape(-1, 200)
         y = np.ones(n) * class_label
         return X, y
@@ -221,7 +230,7 @@ class load_zafar():
 
 
 class load_bank():
-    def __init__(self):
+    def __init__(self, missing_ratio=0.1, add_noise=True, index=0):
         raw_data = pd.read_csv('./dataset/bank.csv').values
         header_cat_idx = [1, 3, 5, 6]
         header_num_idx = [0, 10, 11, 13, 15, 16, 17, 18]
@@ -236,6 +245,7 @@ class load_bank():
         sensitive_feature = np.array(self.process_categorical(raw_data, sensitive_idx)).T
         label = np.array(self.process_categorical(raw_data, label_idx))
         self.k = np.unique(label).shape[0]
+        # select 1000 samples from each cluster
         indices = []
         for j in np.unique(label):
             idx = np.where(label == j)[0]
@@ -244,10 +254,12 @@ class load_bank():
         self.data = self.sigmoid(processed_data)
         self.data2 = self.relu(processed_data)
         self.s = sensitive_feature[indices]
+        self.s = np.array([self.s, 1-self.s]).T
+        # print(self.s.sum(axis=0))
         self.label = label[indices]
-        import collections
-        counter = collections.Counter(self.label)
-        print(counter)
+        # import collections
+        # counter = collections.Counter(self.label)
+        # print(counter)
 
     def __len__(self):
         return len(self.label)
@@ -328,7 +340,7 @@ class load_mnist():
             self.label = data['label'][0][:num]
             self.k = 10
             from collections import Counter
-            print(Counter(self.label))
+            # print(Counter(self.label))
         if not os.path.exists("./data/mnist/noisy_mnist_train_2v_mask_{}.npy".format(missing_ratio)):
             self.mask = []
             self.mask2 = []
@@ -358,4 +370,3 @@ class load_mnist():
         self.data2 = self.data2[idx]
         self.s = self.s[idx]
         self.label = self.label[idx]
-
